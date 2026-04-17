@@ -11,6 +11,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(SDL3 CONFIG REQUIRED)
 
-add_executable(gBoy src/main.cpp)
+add_executable(gBoy
+        src/main.cpp
+        src/core/Bus.cpp
+        src/core/Bus.h
+        src/core/CPU.cpp
+        src/core/CPU.h
+)
 
 target_link_libraries(gBoy PRIVATE $<TARGET_NAME:SDL3::SDL3>)

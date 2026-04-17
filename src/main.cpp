@@ -1,6 +1,9 @@
 #include <iostream>
 #include <SDL3/SDL.h>
 
+#include "core/Bus.h"
+#include "core/CPU.h"
+
 constexpr int GAMEBOY_DISPLAY_WIDTH = 160;
 constexpr int GAMEBOY_DISPLAY_HEIGHT = 144;
 
@@ -33,6 +36,14 @@ int main(int argc, char* argv[]) {
     std::cout << "SDL3 successfully initialized. Window created!" << std::endl;
 
 
+    // --- INITIALIZE GAME BOY HARDWARE ---
+    Core::Bus bus;
+    Core::CPU cpu(&bus);
+
+    // Write a dummy NOP instruction (0x00) followed by a fake opcode (0xFF) to memory for testing
+    bus.write(0x0100, 0x00);
+    bus.write(0x0101, 0xFF);
+
     bool isRunning = true;
     SDL_Event event;
 
@@ -44,6 +55,8 @@ int main(int argc, char* argv[]) {
             if (event.type == SDL_EVENT_QUIT) {
                 isRunning = false;
             }
+
+            cpu.tick();
         }
     }
 
