@@ -19,6 +19,7 @@ namespace Core {
 
         void tick();
 
+        void print_state();
     private:
         Bus* bus;
 

@@ -59,6 +59,23 @@ namespace Core {
             case 0x00:
                 // NOP: Do nothing
                 break;
+            case 0x3E: {
+                // LD A, n: Fetch the next byte from memory and load it into register A
+                uint16_t value = fetch();
+                a = value;
+                break;
+            }
+            case 0x3C: {
+                // INC A: Increment register A
+                bool half_carry = (a & 0x0F) == 0x0F;
+
+                a++;
+
+                set_flag_z(a == 0);
+                set_flag_n(false);
+                set_flag_h(half_carry);
+                break;
+            }
             default:
                 std::cerr << std::format("Unimplemented Opcode: 0x{:02X} at PC: 0x{:04X}\n", opcode, pc - 1);
                 break;
@@ -68,5 +85,12 @@ namespace Core {
     void CPU::tick() {
         uint8_t opcode = fetch();
         execute(opcode);
+    }
+
+    void CPU::print_state() {
+        std::cout << std::format(
+            "PC:0x{:04X} | A:{:02X} F:{:02X} | B:{:02X} C:{:02X} | D:{:02X} E:{:02X} | H:{:02X} L:{:02X} | SP:0x{:04X}\n",
+            pc, a, f, b, c, d, e, h, l, sp
+        );
     }
 }
