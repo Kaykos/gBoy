@@ -65,7 +65,8 @@ namespace Core {
 
         // Execution functions
         uint16_t fetch();
-        void execute(uint16_t opcode);
+        uint16_t fetch_16();
+        void execute(uint8_t opcode);
     };
 }
 

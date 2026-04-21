@@ -23,7 +23,11 @@ namespace Core {
         // Boot sequence
         bool load_boot_rom(const std::string& file_path);
     private:
+        // 64KB memory
         std::array<uint8_t,0x10000> memory{};
+        // Boot ROM
+        std::array<uint8_t, 256> boot_rom{};
+        bool boot_rom_active = true;
     };
 }
 
