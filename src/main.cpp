@@ -40,9 +40,11 @@ int main(int argc, char* argv[]) {
     Core::Bus bus;
     Core::CPU cpu(&bus);
 
-    // Write a dummy NOP instruction (0x00) followed by a fake opcode (0xFF) to memory for testing
-    bus.write(0x0100, 0x00);
-    bus.write(0x0101, 0xFF);
+    if (!bus.load_boot_rom("/Users/sebas/Development/gBoy/files/boot/dmg_boot.bin"))
+    {
+        SDL_Quit();
+        return 1;
+    }
 
     bool isRunning = true;
     SDL_Event event;

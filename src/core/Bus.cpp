@@ -4,6 +4,9 @@
 
 #include "Bus.h"
 
+#include <fstream>
+#include <iostream>
+
 namespace Core {
     Bus::Bus() {
         // Initialize memory
@@ -16,5 +19,36 @@ namespace Core {
 
     void Bus::write(uint16_t address, uint8_t value) {
         memory[address] = value;
+    }
+
+    bool Bus::load_boot_rom(const std::string& file_path) {
+        std::ifstream file;
+
+        // Open file at the end, to determine file size
+        file.open(file_path, std::ios::binary | std::ios::ate);
+
+        if (!file.is_open()) {
+            std::cerr << "Failed to open Boot ROM file: " << file_path << std::endl;
+            return false;
+        }
+
+        // File size
+        const std::streamsize size = file.tellg();
+        if (size != 256)
+        {
+            std::cerr << "Warning: Boot ROM is not exactly 256 bytes! It is " << size << " bytes" << std::endl;
+        }
+
+        // Rewind to beginning
+        file.seekg(0, std::ios::beg);
+
+        // Read file content into memory
+        if (file.read(reinterpret_cast<char*>(memory.data()), size))
+        {
+            std::cout << "Successfully loaded Boot ROM! (" << size << " bytes)" << std::endl;
+            return true;
+        }
+
+        return false;
     }
 }

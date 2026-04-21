@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# ROMs and proprietary binaries
+*.bin
+*.gb
+*.gbc
+*.rom
