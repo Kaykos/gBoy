@@ -40,7 +40,8 @@ int main(int argc, char* argv[]) {
     Core::Bus bus;
     Core::CPU cpu(&bus);
 
-    if (!bus.load_boot_rom("/Users/sebas/Development/gBoy/files/boot/dmg_boot.bin"))
+    // if (!bus.load_boot_rom("/Users/sebas/Development/gBoy/files/boot/dmg_boot.bin"))
+    if (!bus.load_boot_rom(R"(D:\Development\gBoy\files\boot\dmg_boot.bin)"))
     {
         SDL_Quit();
         return 1;
@@ -58,7 +59,9 @@ int main(int argc, char* argv[]) {
                 isRunning = false;
             }
 
-            cpu.tick();
+            for (int i = 0; i < 50000; i++) {
+                cpu.tick();
+            }
         }
     }
 

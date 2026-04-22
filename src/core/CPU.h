@@ -34,6 +34,9 @@ namespace Core {
         uint16_t sp; // Stack pointer
         uint16_t pc; // Program counter
 
+        // -- Helpers for registers
+        void inc_8bit(uint8_t& reg);
+
         // -- Helpers for paired registers --
         // [[nodiscard]] is used to make sure whenever the function is called, the return value is taken/assigned
         [[nodiscard]] uint16_t get_af() const;
@@ -63,10 +66,18 @@ namespace Core {
         void set_flag_h(bool value);
         void set_flag_c(bool value);
 
+        // Stack functions
+        void stack_push16(uint16_t value);
+
+        // For 0xCB opcodes
+        void check_bit(uint8_t value, uint8_t bit_index);
+        void rl(uint8_t& reg);
+
         // Execution functions
         uint16_t fetch();
         uint16_t fetch_16();
         void execute(uint8_t opcode);
+        void execute_cb(uint8_t cb_opcode);
     };
 }
 
