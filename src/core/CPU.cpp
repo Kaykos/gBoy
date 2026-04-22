@@ -9,7 +9,7 @@ namespace Core {
     CPU::CPU(Bus *bus) : bus(bus) {
         pc = 0x0000; // Start at the beginning of the Boot ROM
         sp = 0x0000;
-    };
+    }
 
     void CPU::inc_8bit(uint8_t &reg) {
         // INC r8: Increment the value in register r8 by 1
@@ -22,6 +22,29 @@ namespace Core {
         set_flag_h(half_carry);
     }
 
+    void CPU::dec_8bit(uint8_t &reg) {
+        // DEC r8: Decrement the value in register r8 by 1
+        bool half_borrow = (reg & 0x0F) == 0x00; // Check if the lower nibble is 0. If it is, subtracting 1 will borrow from bit 4
+
+        reg--;
+
+        set_flag_z(reg == 0);
+        set_flag_n(true);
+        set_flag_h(half_borrow);
+    }
+
+    void CPU::compare_a(uint8_t value) {
+        // Compare the value in A with the given value
+        uint8_t result = a - value;
+        // Half-borrow happens if the lower nibble of A is smaller than the lower nibble of the value
+        bool half_borrow = (a & 0x0F) < (value & 0x0F);
+
+        set_flag_z(result == 0);
+        set_flag_n(true);
+        set_flag_h(half_borrow);
+        set_flag_c(value > a);
+    }
+
     // Combine registries into one 16-bit value
     uint16_t CPU::get_af() const { return a << 8 | f; }
     uint16_t CPU::get_bc() const { return b << 8 | c; }
@@ -31,7 +54,7 @@ namespace Core {
     // Split a 16-bit value into two registers
     void CPU::set_af(uint16_t value) {
         a = (value & 0xFF00) >> 8;
-        f = value & 0x00F0; // The bottom 4 bits of the F register are always zerp
+        f = value & 0x00F0; // The bottom 4 bits of the F register are always zero
     }
 
     void CPU::set_bc(const uint16_t value) {
@@ -102,6 +125,27 @@ namespace Core {
         bus->write(sp, lower_byte);
     }
 
+    void CPU::stack_pop16(uint8_t &upper_byte, uint8_t &lower_byte) {
+        // When popping data, the stack pointer moves forward in memory
+        lower_byte = bus->read(sp);
+        sp++;
+
+        upper_byte = bus->read(sp);
+        sp++;
+    }
+
+    uint16_t CPU::stack_pop16() {
+        // Pop 2 consecutive 8-bit values merged into one value
+        uint8_t lower_byte = bus->read(sp);
+        sp++;
+
+        uint8_t upper_byte = bus->read(sp);
+        sp++;
+
+        // Combine into 16-bit value
+        return (upper_byte << 8) | lower_byte;
+    }
+
     void CPU::check_bit(uint8_t value, uint8_t bit_index) {
         // Check the bit at position bit_index of value
         const uint8_t mask = 1 << bit_index;
@@ -137,18 +181,6 @@ namespace Core {
             case 0x00:
                 // NOP: Do nothing
                 break;
-            case 0x20: {
-                // JR NZ, n16: Relative jump to address n16 if condition (Not Zero) is met
-                const uint8_t value = fetch();
-                const auto offset = static_cast<int8_t>(value); // Relative jumps treat n16 as an 8-bit signed integer
-
-                // Not Zero means the last operation result was not zero, so the zero flag is false
-                if (!get_flag_z()) {
-                    pc += offset;
-                }
-
-                break;
-            }
             // ---- Load instructions ----
             case 0x06: {
                 // LD B, n8: Fetch the next byte from memory and load it into register B
@@ -195,6 +227,21 @@ namespace Core {
             case 0x3E: {
                 // LD A, n8: Fetch the next byte from memory and load it into register A
                 a = fetch();
+                break;
+            }
+            case 0x22: {
+                // LD [HLI], A: Copy the value in register A into the byte pointed by HL and increment HL afterward
+                // Written as LD [HL+], A or LDI [HL], A
+                bus->write(get_hl(), a);
+                set_hl(get_hl() + 1);
+
+                break;
+            }
+            case 0x2A: {
+                // LD A, [HLI]: Copy the value pointed to by HL into A, then increment HL
+                a = bus->read(get_hl());
+                set_hl(get_hl() + 1);
+
                 break;
             }
             case 0x32: {
@@ -294,6 +341,14 @@ namespace Core {
 
                 break;
             }
+            case 0xF0: {
+                // LDH A, [a8]: Copy the byte at High RAM address (0xFF00 + a8) into register A
+                uint8_t offset = fetch();
+                uint16_t address = 0xFF00 + offset;
+                a = bus->read(address);
+
+                break;
+            }
             case 0xE2: {
                 // LDH [C], A: Copy the value in register A into the byte at address 0xFF00+C
                 const uint16_t address = 0xFF00 + c;
@@ -326,31 +381,52 @@ namespace Core {
                 sp = value;
                 break;
             }
+            case 0xEA: {
+                // LD [a16], A: Copy the value in register A into the byte at address n16
+                uint16_t address = fetch_16();
+                bus->write(address, a);
+                break;
+            }
+            case 0xFA: {
+                // LD A, [a16]: Copy the value at memory address a16 into register A
+                uint16_t address = fetch_16();
+                a = bus->read(address);
+
+                // Flags: - - - -
+                break;
+            }
             // ---- 8-bit arithmetic instructions ----
-            case 0x0C: {
-                // INC C: Increment the value in register C by 1
-                inc_8bit(c);
-
-                break;
-            }
-            case 0x1C: {
-                // INC E: Increment the value in register E by 1
-                inc_8bit(e);
-
-                break;
-            }
-            case 0x2C: {
-                // INC L: Increment the value in register L by 1
-                inc_8bit(l);
-
-                break;
-            }
-            case 0x3C: {
-                // INC A: Increment the value in registerAC by 1
-                inc_8bit(a);
-
-                break;
-            }
+            // @formatter:off
+            case 0xB8: { compare_a(b); break; } // CP A, B
+            case 0xB9: { compare_a(c); break; } // CP A, C
+            case 0xBA: { compare_a(d); break; } // CP A, D
+            case 0xBB: { compare_a(e); break; } // CP A, E
+            case 0xBC: { compare_a(h); break; } // CP A, H
+            case 0xBD: { compare_a(l); break; } // CP A, L
+            case 0xBE: { compare_a(bus->read(get_hl())); break; } // CP A, [HL]
+            case 0xBF: { compare_a(a); break; } // CP A, A
+            case 0xFE: { compare_a(fetch()); break; } // CP A, n8
+            case 0x04: { inc_8bit(b); break; } // INC B
+            case 0x14: { inc_8bit(d); break; } // INC D
+            case 0x24: { inc_8bit(h); break; } // INC H
+            case 0x0C: { inc_8bit(c); break; } // INC C
+            case 0x1C: { inc_8bit(e); break; } // INC E
+            case 0x2C: { inc_8bit(l); break; } // INC L
+            case 0x3C: { inc_8bit(a); break; } // INC A
+            case 0x05: { dec_8bit(b); break; } // DEC B
+            case 0x0D: { dec_8bit(c); break; } // DEC C
+            case 0x15: { dec_8bit(d); break; } // DEC D
+            case 0x1D: { dec_8bit(e); break; } // DEC E
+            case 0x25: { dec_8bit(h); break; } // DEC H
+            case 0x2D: { dec_8bit(l); break; } // DEC L
+            case 0x3D: { dec_8bit(a); break; } // DEC A
+            // ---- 16-bit arithmetic instructions ----
+            case 0x03: { set_bc(get_bc() + 1); break; } // INC BC
+            case 0x13: { set_de(get_de() + 1); break; } // INC DE
+            case 0x23: { set_hl(get_hl() + 1); break; } // INC HL
+            case 0x33: { sp++; break; } // INC SP
+            // @formatter:on
+            // ---- Bitwise logic instructions ----
             case 0xAF: {
                 // XOR A, A: Set A to the bitwise XOR between the value of A and itself
                 a ^= a;
@@ -376,6 +452,55 @@ namespace Core {
 
             }
             // ---- Jumps and subroutine instructions ----
+            case 0x18: {
+                // JR e8: Unconditional relative jump
+                const auto offset = static_cast<int8_t>(fetch());
+                pc += offset;
+
+                break;
+            }
+            case 0x20: {
+                // JR NZ, e8: Relative jump to address n16 if condition (Not Zero) is met
+                const uint8_t value = fetch();
+                const auto offset = static_cast<int8_t>(value); // Relative jumps treat n16 as an 8-bit signed integer
+
+                // Not Zero means the last operation result was not zero, so the zero flag is false
+                if (!get_flag_z()) {
+                    pc += offset;
+                }
+
+                break;
+            }
+            case 0x28: {
+                // JR Z, e8: Relative jump to address n16 if condition (Zero) is met
+                const uint8_t value = fetch();
+                const auto offset = static_cast<int8_t>(value); // Relative jumps treat n16 as an 8-bit signed integer
+
+                // Zero means the last operation result was zero, so the zero flag is true
+                if (get_flag_z()) {
+                    pc += offset;
+                }
+
+                break;
+            }
+            case 0x30: {
+                // JR NC, e8: Relative jump if Carry flag is false (Not Carry)
+                const auto offset = static_cast<int8_t>(fetch());
+                if (!get_flag_c()) {
+                    pc += offset;
+                }
+
+                break;
+            }
+            case 0x38: {
+                // JR C, e8: Relative jump if Carry flag is true (Carry)
+                const auto offset = static_cast<int8_t>(fetch());
+                if (get_flag_c()) {
+                    pc += offset;
+                }
+
+                break;
+            }
             case 0xCD: {
                 // CALL n16: Pushes the address of the instruction after the CALL on the stack, such that RET can pop it later;
                 // then, it executes an implicit JP n16.
@@ -385,7 +510,27 @@ namespace Core {
 
                 break;
             }
+            case 0xC9: {
+                // RET: Return from subroutine
+                pc = stack_pop16();
+                break;
+            }
             // ---- Stack manipulation instructions ----
+            case 0xC1: {
+                // POP BC: Pop register BC from the stack
+                stack_pop16(b, c);
+                break;
+            }
+            case 0xD1: {
+                // POP DE: Pop register DE from the stack
+                stack_pop16(d, e);
+                break;
+            }
+            case 0xE1: {
+                // POP HL: Pop register HL from the stack
+                stack_pop16(h, l);
+                break;
+            }
             case 0xC5: {
                 // PUSH BC: Push BC into the stack
                 stack_push16(get_bc());

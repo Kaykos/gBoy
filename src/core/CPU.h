@@ -36,6 +36,8 @@ namespace Core {
 
         // -- Helpers for registers
         void inc_8bit(uint8_t& reg);
+        void dec_8bit(uint8_t& reg);
+        void compare_a(uint8_t value);
 
         // -- Helpers for paired registers --
         // [[nodiscard]] is used to make sure whenever the function is called, the return value is taken/assigned
@@ -68,6 +70,8 @@ namespace Core {
 
         // Stack functions
         void stack_push16(uint16_t value);
+        void stack_pop16(uint8_t &upper_byte, uint8_t &lower_byte);
+        uint16_t stack_pop16();
 
         // For 0xCB opcodes
         void check_bit(uint8_t value, uint8_t bit_index);
