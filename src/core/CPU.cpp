@@ -45,6 +45,38 @@ namespace Core {
         set_flag_c(value > a);
     }
 
+    void CPU::subtract_a(uint8_t value) {
+        uint8_t result = a - value;
+
+        bool half_borrow = (a & 0x0F) < (value & 0x0F);
+        bool full_borrow = a < value;
+
+        a = result;
+
+        set_flag_z(a == 0);
+        set_flag_n(true);
+        set_flag_h(half_borrow);
+        set_flag_c(full_borrow);
+    }
+
+    void CPU::add_a(uint8_t value) {
+        uint8_t result = a + value;
+
+        // Half-carry happens if the lower nibbles sum to more than 15 (0x0F)
+        bool half_carry = ((a & 0x0F) + (value & 0x0F)) > 0x0F;
+
+        // Full carry happens if the total sum is greater than 255 (0xFF)
+        bool full_carry = result > 0xFF;
+
+        // Update the register (cast back to 8-bit automatically wraps the overflow)
+        a = static_cast<uint8_t>(result);
+
+        set_flag_z(a == 0);
+        set_flag_n(true);
+        set_flag_h(half_carry);
+        set_flag_c(full_carry);
+    }
+
     // Combine registries into one 16-bit value
     uint16_t CPU::get_af() const { return a << 8 | f; }
     uint16_t CPU::get_bc() const { return b << 8 | c; }
@@ -406,6 +438,22 @@ namespace Core {
             case 0xBE: { compare_a(bus->read(get_hl())); break; } // CP A, [HL]
             case 0xBF: { compare_a(a); break; } // CP A, A
             case 0xFE: { compare_a(fetch()); break; } // CP A, n8
+            case 0x90: { subtract_a(b); break; } // SUB A, B
+            case 0x91: { subtract_a(c); break; } // SUB A, C
+            case 0x92: { subtract_a(d); break; } // SUB A, D
+            case 0x93: { subtract_a(e); break; } // SUB A, E
+            case 0x94: { subtract_a(h); break; } // SUB A, H
+            case 0x95: { subtract_a(l); break; } // SUB A, L
+            case 0x96: { subtract_a(bus->read(get_hl())); break; } // SUB A, [HL]
+            case 0x97: { subtract_a(a); break; } // SUB A, A
+            case 0x80: { add_a(b); break; } // ADD A, B
+            case 0x81: { add_a(c); break; } // ADD A, C
+            case 0x82: { add_a(d); break; } // ADD A, D
+            case 0x83: { add_a(e); break; } // ADD A, E
+            case 0x84: { add_a(h); break; } // ADD A, H
+            case 0x85: { add_a(l); break; } // ADD A, L
+            case 0x86: { add_a(bus->read(get_hl())); break; } // ADD A, [HL]
+            case 0x87: { add_a(a); break; } // ADD A, A
             case 0x04: { inc_8bit(b); break; } // INC B
             case 0x14: { inc_8bit(d); break; } // INC D
             case 0x24: { inc_8bit(h); break; } // INC H
@@ -612,5 +660,9 @@ namespace Core {
             "PC:0x{:04X} | A:{:02X} F:{:02X} | B:{:02X} C:{:02X} | D:{:02X} E:{:02X} | H:{:02X} L:{:02X} | SP:0x{:04X}\n",
             pc, a, f, b, c, d, e, h, l, sp
         );
+    }
+
+    uint16_t CPU::get_pc() const {
+        return pc;
     }
 }

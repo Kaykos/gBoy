@@ -20,6 +20,7 @@ namespace Core {
         void tick();
 
         void print_state();
+        [[nodiscard]] uint16_t get_pc() const;
     private:
         Bus* bus;
 
@@ -38,6 +39,8 @@ namespace Core {
         void inc_8bit(uint8_t& reg);
         void dec_8bit(uint8_t& reg);
         void compare_a(uint8_t value);
+        void subtract_a(uint8_t value);
+        void add_a(uint8_t value);
 
         // -- Helpers for paired registers --
         // [[nodiscard]] is used to make sure whenever the function is called, the return value is taken/assigned
