@@ -129,7 +129,13 @@ namespace Core {
         // Hardware I/O Registers (0xFF00 - 0xFF7F)
         // Joypad, Timers, Audio, PPU registers live here.
         if (address >= 0xFF00 && address <= 0xFF7F) {
-            //
+            // --- TEMPORARY AUDIO TRAP ---
+            // Listen to the Channel 1 Audio Registers
+            if (address >= 0xFF10 && address <= 0xFF14) {
+                std::cout << std::format("Audio CH1 Write -> Reg: 0x{:04X} | Value: 0x{:02X}\n", address, value);
+            }
+
+            return; // Ignore other I/O for now
         }
 
         // High RAM - HRAM (0xFF80 - 0xFFFE)

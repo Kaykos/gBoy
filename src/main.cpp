@@ -39,6 +39,33 @@ void render_vram_viewer(Core::Bus* bus, uint32_t* pixel_buffer) {
     }
 }
 
+void render_gameboy_screen(Core::Bus* bus, uint32_t* pixel_buffer) {
+    for (uint8_t y = 0; y < GAMEBOY_DISPLAY_HEIGHT; y++) {
+        for (uint8_t x = 0; x < GAMEBOY_DISPLAY_WIDTH; x++) {
+            uint8_t tile_x = x / 8;
+            uint8_t tile_y = y / 8;
+
+            uint16_t map_address = 0x9800 + (tile_y * 32) + tile_x;
+            uint8_t tile_id = bus->read(map_address);
+
+            uint16_t tile_address = 0x8000 + (tile_id * 16);
+
+            uint8_t pixel_x_in_tile = x % 8;
+            uint8_t pixel_y_in_tile = y % 8;
+
+            uint8_t byte1 = bus->read(tile_address + (pixel_y_in_tile * 2));
+            uint8_t byte2 = bus->read(tile_address + (pixel_y_in_tile * 2) + 1);
+
+            uint8_t bit_index = 7 - pixel_x_in_tile;
+            uint8_t lower_bit = (byte1 >> bit_index) & 1;
+            uint8_t upper_bit = (byte2 >> bit_index) & 1;
+            uint8_t color_id = (upper_bit << 1) | lower_bit;
+
+            pixel_buffer[y * GAMEBOY_DISPLAY_WIDTH + x] = PALETTE[color_id];
+        }
+    }
+}
+
 int main(int argc, char* argv[]) {
     // Initialize SDL's Video Subsystem
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -68,12 +95,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 128, 128);
+    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, GAMEBOY_DISPLAY_WIDTH, GAMEBOY_DISPLAY_HEIGHT);
     if (texture == nullptr) {
         std::cerr << "Texture failed! SDL_Error: " << SDL_GetError() << std::endl;
         return 1;
     }
-    uint32_t pixel_buffer[128 * 128];
+    uint32_t pixel_buffer[GAMEBOY_DISPLAY_WIDTH * GAMEBOY_DISPLAY_HEIGHT];
 
     // --- INITIALIZE GAME BOY HARDWARE ---
     Core::Bus bus;
@@ -103,36 +130,37 @@ int main(int argc, char* argv[]) {
             if (event.type == SDL_EVENT_QUIT) {
                 isRunning = false;
             }
+        }
+        if (!bootRomFinished) {
+            for (int i = 0; i < 50000; i++) {
+                cpu.tick();
 
-            if (!bootRomFinished) {
-                for (int i = 0; i < 50000; i++) {
-                    cpu.tick();
-
-                    uint16_t current_pc = cpu.get_pc();
-                    // Stop the CPU before it crashes into empty cartridge memory
-                    if (current_pc == 0x0100) {
-                        std::cout << std::format("Boot ROM finished! current_pc: 0x{:04X}.  Rendering VRAM...", current_pc) << std::endl;
-                        bootRomFinished = true;
-                        break;
-                    }
+                uint16_t current_pc = cpu.get_pc();
+                // Stop the CPU before it crashes into empty cartridge memory
+                if (current_pc == 0x0100) {
+                    std::cout << std::format("Boot ROM finished! current_pc: 0x{:04X}.  Rendering VRAM...", current_pc) << std::endl;
+                    bootRomFinished = true;
+                    break;
                 }
             }
-            // 3. Rendering Phase
-            else {
-                // Decode the VRAM into pixel buffer
-                render_vram_viewer(&bus, pixel_buffer);
+        }
+        // Rendering Phase
+        else {
+            // Decode the VRAM into pixel buffer
+            // render_vram_viewer(&bus, pixel_buffer);
 
-                // Send the pixels to the GPU
-                SDL_UpdateTexture(texture, nullptr, pixel_buffer, 128 * sizeof(uint32_t));
+            render_gameboy_screen(&bus, pixel_buffer);
 
-                // Clear screen, draw texture, and present it
-                SDL_RenderClear(renderer);
-                SDL_RenderTexture(renderer, texture, nullptr, nullptr);
-                SDL_RenderPresent(renderer);
+            // Send the pixels to the GPU
+            SDL_UpdateTexture(texture, nullptr, pixel_buffer, GAMEBOY_DISPLAY_WIDTH * sizeof(uint32_t));
 
-                // Add a small 16ms delay (roughly 60 FPS)
-                SDL_Delay(16);
-            }
+            // Clear screen, draw texture, and present it
+            SDL_RenderClear(renderer);
+            SDL_RenderTexture(renderer, texture, nullptr, nullptr);
+            SDL_RenderPresent(renderer);
+
+            // Add a small 16ms delay (roughly 60 FPS)
+            SDL_Delay(16);
         }
     }
 
